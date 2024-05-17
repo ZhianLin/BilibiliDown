@@ -1,0 +1,29 @@
+name: Build JAR with Minimal JRE
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Java JRE
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '8' # Use Java 8 for minimal JRE
+          architecture: 'x64'
+          package: 'jre' # Install the JRE package
+
+      - name: Build JAR
+        run: mvn package
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: jar
+          path: target/*.jar
