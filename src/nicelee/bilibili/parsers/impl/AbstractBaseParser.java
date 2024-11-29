@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -15,6 +14,7 @@ import org.json.JSONObject;
 import nicelee.bilibili.API;
 import nicelee.bilibili.enums.DownloadModeEnum;
 import nicelee.bilibili.exceptions.ApiLinkQueryParseError;
+import nicelee.bilibili.exceptions.NoSubtitleException;
 import nicelee.bilibili.exceptions.QualityTooLowException;
 import nicelee.bilibili.model.ClipInfo;
 import nicelee.bilibili.model.StoryClipInfo;
@@ -78,6 +78,7 @@ public abstract class AbstractBaseParser implements IInputParser {
 		Logger.println(detailJson);
 		JSONObject detailObj = new JSONObject(detailJson).getJSONObject("data");
 
+		long aid = detailObj.getLong("aid");
 		long ctime = detailObj.optLong("ctime") * 1000;
 		viInfo.setVideoName(detailObj.getString("title"));
 		viInfo.setBrief(detailObj.getString("desc"));
@@ -88,28 +89,26 @@ public abstract class AbstractBaseParser implements IInputParser {
 		// 判断是否是互动视频
 		if (detailObj.optInt("videos") > 1 && array.length() == 1) {
 			// 查询graph_version版本
-			String url_graph_version = String.format("https://api.bilibili.com/x/player.so?id=cid:%d&bvid=%s", cid,
-					bvId);
-			String xml = util.getContent(url_graph_version, headers_json, HttpCookies.globalCookiesWithFingerprint());
-			Logger.println(xml);
-			Pattern p = Pattern.compile("<interaction>.*\"graph_version\" *: *([0-9]+).*</interaction>");
-			Matcher matcher = p.matcher(xml);
-			if (matcher.find()) {
-				String graph_version = matcher.group(1);
-				Logger.println(graph_version);
-				List<List<StoryClipInfo>> story_list = new ArrayList<>();
-				List<StoryClipInfo> originStory = new ArrayList<StoryClipInfo>();
-				StoryClipInfo storyClip = new StoryClipInfo(cid);
-				originStory.add(storyClip);
-				HashSet<StoryClipInfo> node_list = new HashSet<>();
-				// 从根节点，一直遍历到子节点，找到所有故事线，放到story_list
-				collectStoryList(bvId, "", graph_version, originStory, story_list, node_list);
-				LinkedHashMap<Long, ClipInfo> clipMap = storyList2Map(bvId, videoFormat, getVideoLink, viInfo,
-						story_list);
-				viInfo.setClips(clipMap);
-				viInfo.print();
-				return viInfo;
-			}
+			String url_graph_version = String.format("https://api.bilibili.com/x/player/wbi/v2?aid=%d&cid=%d&isGaiaAvoided=false", aid, cid);
+			url_graph_version += API.genDmImgParams();
+			url_graph_version = API.encWbi(url_graph_version);
+			String result = util.getContent(url_graph_version, headers_json, HttpCookies.globalCookiesWithFingerprint());
+			Logger.println(url_graph_version);
+			Logger.println(result);
+			String graph_version = new JSONObject(result).getJSONObject("data").getJSONObject("interaction").optString("graph_version");
+			Logger.println(graph_version);
+			List<List<StoryClipInfo>> story_list = new ArrayList<>();
+			List<StoryClipInfo> originStory = new ArrayList<StoryClipInfo>();
+			StoryClipInfo storyClip = new StoryClipInfo(cid);
+			originStory.add(storyClip);
+			HashSet<StoryClipInfo> node_list = new HashSet<>();
+			// 从根节点，一直遍历到子节点，找到所有故事线，放到story_list
+			collectStoryList(bvId, "", graph_version, originStory, story_list, node_list);
+			LinkedHashMap<Long, ClipInfo> clipMap = storyList2Map(bvId, videoFormat, getVideoLink, viInfo,
+					story_list);
+			viInfo.setClips(clipMap);
+			viInfo.print();
+			return viInfo;
 		} else {
 			LinkedHashMap<Long, ClipInfo> clipMap = new LinkedHashMap<Long, ClipInfo>();
 			int[] qnListDefault = null;
@@ -170,7 +169,7 @@ public abstract class AbstractBaseParser implements IInputParser {
 				+ bvId;
 		HashMap<String, String> header = headers.getBiliJsonAPIHeaders(bvId);
 		String callBack = util.getContent(url, header);
-		JSONObject infoObj = new JSONObject(callBack.substring(6, callBack.length() - 2)).getJSONObject("data")
+		JSONObject infoObj = new JSONObject(callBack.substring(6, callBack.length() - 1)).getJSONObject("data")
 				.getJSONObject("View");
 		Long aid = infoObj.optLong("aid");
 
@@ -250,15 +249,15 @@ public abstract class AbstractBaseParser implements IInputParser {
 	}
 	
 	protected String getVideoSubtitleLink(String bvId, String cid, int qn) {
-		String url = String.format("https://api.bilibili.com/x/player.so?id=cid:%s&bvid=%s", cid, bvId);
+		String url = String.format("https://api.bilibili.com/x/player/wbi/v2?bvid=%s&cid=%s&isGaiaAvoided=false", bvId, cid);
+		url += API.genDmImgParams();
+		url = API.encWbi(url);
 		Logger.println(url);
 		HashMap<String, String> headers_json = new HttpHeaders().getBiliJsonAPIHeaders(bvId);
-		String xml = util.getContent(url, headers_json, HttpCookies.globalCookiesWithFingerprint());
-		Pattern p = Pattern.compile("<subtitle>(.*?)</subtitle>");
-		Matcher matcher = p.matcher(xml);
-		if (matcher.find()) {
-			paramSetter.setRealQN(qn);
-			JSONArray subList = new JSONObject(matcher.group(1)).getJSONArray("subtitles");
+		String result = util.getContent(url, headers_json, HttpCookies.globalCookiesWithFingerprint());
+		paramSetter.setRealQN(qn);
+		try {
+			JSONArray subList = new JSONObject(result).getJSONObject("data").getJSONObject("subtitle").getJSONArray("subtitles");
 			for (int i = 0; i < subList.length(); i++) {
 				JSONObject sub = subList.getJSONObject(i);
 				String subLang = sub.getString("lan");
@@ -266,11 +265,12 @@ public abstract class AbstractBaseParser implements IInputParser {
 					return "https:" + sub.getString("subtitle_url");
 				}
 			}
-
+			
 			return "https:" + subList.getJSONObject(0).getString("subtitle_url");
+		} catch (Exception e) {
+			String tips = Global.isLogin? "未能找到字幕 " + bvId : "未能找到字幕，这可能是没有登录造成的。" + bvId;
+			throw new NoSubtitleException(tips, e);
 		}
-
-		return null;
 	}
 
 	/**
@@ -294,7 +294,7 @@ public abstract class AbstractBaseParser implements IInputParser {
 				+ bvId;
 		HashMap<String, String> header = headers.getBiliJsonAPIHeaders(bvId);
 		String callBack = util.getContent(url, header);
-		JSONObject infoObj = new JSONObject(callBack.substring(6, callBack.length() - 2)).getJSONObject("data")
+		JSONObject infoObj = new JSONObject(callBack.substring(6, callBack.length() - 1)).getJSONObject("data")
 				.getJSONObject("View");
 		Long aid = infoObj.optLong("aid");
 

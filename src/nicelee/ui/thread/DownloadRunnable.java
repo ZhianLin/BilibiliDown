@@ -4,16 +4,14 @@ import java.awt.Dimension;
 
 import javax.swing.JPanel;
 
-import nicelee.bilibili.API;
 import nicelee.bilibili.INeedAV;
-import nicelee.bilibili.enums.StatusEnum;
 import nicelee.bilibili.exceptions.BilibiliError;
 import nicelee.bilibili.model.ClipInfo;
 import nicelee.bilibili.model.VideoInfo;
 import nicelee.bilibili.util.CmdUtil;
-import nicelee.bilibili.util.Logger;
 import nicelee.bilibili.util.RepoUtil;
 import nicelee.bilibili.util.ResourcesUtil;
+import nicelee.bilibili.util.custom.System;
 import nicelee.ui.Global;
 import nicelee.ui.TabDownload;
 import nicelee.ui.item.DownloadInfoPanel;
@@ -93,18 +91,17 @@ public class DownloadRunnable implements Runnable {
 		}
 		// 查询下载链接
 		INeedAV iNeedAV = new INeedAV();
-		String urlQuery = null;
-		int realQN = 0;
-		if(!avid.startsWith("h")){
+		String urlQuery;
+		int realQN;
+		if(!ResourcesUtil.isPicture(avid)){
 			urlQuery = iNeedAV.getInputParser(avid).getVideoLink(avid, cid, qn, Global.downloadFormat); //该步含网络查询， 可能较为耗时
 			realQN = iNeedAV.getInputParser(avid).getVideoLinkQN();
 		}else {
 			urlQuery = clip.getLinks().get(0);
+			realQN = 0;
 		}
-		String url = urlQuery;
 		// 生成格式化名称
-		String formattedTitle = CmdUtil.genFormatedName(
-				avInfo,clip,realQN);
+		String formattedTitle = CmdUtil.genFormatedName(avInfo,clip,realQN);
 		String avid_qn = avid + "-" + realQN;
 		this.record = avid_qn  + "-p" + page;
 		//如果清晰度不符合预期，再判断一次记录
@@ -116,7 +113,7 @@ public class DownloadRunnable implements Runnable {
 			return;
 		}
 		//获取实际清晰度后，初始化下载部件参数
-		downPanel.initDownloadParams(iNeedAV, url, avid_qn, formattedTitle, realQN);
+		downPanel.initDownloadParams(iNeedAV, urlQuery, avid_qn, formattedTitle, realQN);
 		// 再进行一次判断，看下载列表是否已经存在相应任务(防止并发误判)
 		if (Global.downloadTaskList.get(downPanel) != null) {
 			System.out.println("已经存在相关下载");
@@ -130,41 +127,9 @@ public class DownloadRunnable implements Runnable {
 		JPanel jpContent = Global.downloadTab.getJpContent();
 		jpContent.add(downPanel);
 		jpContent.setPreferredSize(new Dimension(1100, 128 * Global.downloadTaskList.size()));
-		Global.downLoadThreadPool.execute(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					if(iNeedAV.getDownloader().currentStatus() == StatusEnum.NONE && downPanel.stopOnQueue) {
-						Logger.println("已经删除等待队列,无需再下载");
-						return;
-					}
-					if(iNeedAV.getDownloader().currentStatus() == StatusEnum.STOP) {
-						Logger.println("已经人工停止,无需再下载");
-						return;
-					}
-					// 开始下载
-					if(iNeedAV.downloadClip(url, avid, iNeedAV.getInputParser(avid).getVideoLinkQN(), page)) {
-						// 下载成功后保存到仓库
-						if(Global.saveToRepo) {
-							RepoUtil.appendAndSave(record);
-						}
-						if(Global.thumbUpAfterDownloaded && Global.isLogin && avid.startsWith("BV")) {
-							API.like(avid);
-						}
-						CmdUtil.convertOrAppendCmdToRenameBat(avid_qn, formattedTitle, page);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				if(Global.sleepAfterDownloadComplete > 0) {
-					try {
-						Thread.sleep(Global.sleepAfterDownloadComplete);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		});
+		if(!Global.downLoadThreadPool.isShutdown()){
+			Global.downLoadThreadPool.execute(new DownloadRunnableInternal(downPanel, System.currentTimeMillis(), false, 0));
+		}
 		if(Global.sleepAfterDownloadQuery > 0) {
 			try {
 				Thread.sleep(Global.sleepAfterDownloadQuery);

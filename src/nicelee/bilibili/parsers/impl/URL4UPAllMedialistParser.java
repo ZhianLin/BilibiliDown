@@ -16,7 +16,6 @@ import nicelee.bilibili.model.VideoInfo;
 import nicelee.bilibili.util.HttpCookies;
 import nicelee.bilibili.util.HttpHeaders;
 import nicelee.bilibili.util.Logger;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
  * 
@@ -32,7 +31,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
  * tid	// 全部 0, 音乐 3...
  *
  */
-@Bilibili(name = "URL4UPAllMedialistParser", weight = 77, ifLoad = "listAll", note = "个人上传的视频列表(Medialist解析方式)")
+@Bilibili(name = "URL4UPAllMedialistParser", weight = 70, ifLoad = "listAll", note = "个人上传的视频列表(Medialist解析方式)")
 public class URL4UPAllMedialistParser extends AbstractPageQueryParser<VideoInfo> {
 	// 针对 https://www.bilibili.com/medialist/play/378034?from=space&business=space&sort_field=play&tid=3
 	private final static Pattern pattern = Pattern
@@ -42,7 +41,7 @@ public class URL4UPAllMedialistParser extends AbstractPageQueryParser<VideoInfo>
 	// 针对 https://space.bilibili.com/378034/video?tid=3&keyword=&order=stow
 	// (keyword必须为空)
 	private final static Pattern pattern2 = Pattern
-			.compile("space\\.bilibili\\.com/([0-9]+)(/video|/search/video\\?|/? *$|\\?)");
+			.compile("space\\.bilibili\\.com/([0-9]+)(/video|/search/video\\?|/? *$|/?\\?)");
 	public final static Pattern patternKeyNotEmpty = Pattern.compile("keyword=[^=&]+");
 	private final static Pattern patternParams2 = Pattern.compile("(tid|order)=([^=&]+)");
 
@@ -288,6 +287,6 @@ public class URL4UPAllMedialistParser extends AbstractPageQueryParser<VideoInfo>
 	
 	@Override
 	protected boolean query(int page, int min, int max, Object... obj) {
-		throw new NotImplementedException();
+		return false;
 	}
 }

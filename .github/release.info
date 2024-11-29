@@ -1,9 +1,6 @@
-* 新增: 重命名文件失败时，尝试添加序号继续重命名。[#185](https://github.com/nICEnnnnnnnLee/BilibiliDown/issues/185)
-    + 目的地址存在文件时，会在约定的名称末尾尝试添加`(01)、(02)...`这样的序号
-    + 通过配置`bilibili.name.autoNumber`可以开启/关闭该功能
-* 优化: 查询UP主所有链接时添加`dm_img`系列参数，防止返回352。（不登录也能用了）
-* 修复: 查询UP主所有链接时相关请求添加`referer`，防止返回412。[#192](https://github.com/nICEnnnnnnnLee/BilibiliDown/issues/192)
-* 其它常规优化，详见[V6.30...V6.31](https://github.com/nICEnnnnnnnLee/BilibiliDown/compare/V6.30...V6.31)
+* 修复：纠正一键下载时，以日期作为条件判断不准确的错误 #235
+* 修复：更新字幕api的解析 #232
+* 其它详见[V6.36...V6.37](https://github.com/nICEnnnnnnnLee/BilibiliDown/compare/V6.36...V6.37)
 <hr/>
 
-如果你是Win64用户,且没有java环境，请下载附件`*.win_x64_jre11.release.zip`
+如果你是Win64用户,且没有java环境，请下载附件`*.win_x64_jre11.release.zip`或 `*.win_x64.msi`
